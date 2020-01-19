@@ -1,0 +1,95 @@
+---
+title: "Projekt zaliczeniowy"
+89au9thor: "Katarzyna Rzeszutek, Karol Szpyt"
+da89te: "19 stycznia 2020"
+output: html_document
+encoding: "utf - 8"
+toc: true
+---
+Dane z jakich korzystano w poniższym opracowaniu to zestaw 19. **Celem niniejszego projektu jest budowa jak najlepiej dopasowanego modelu do danych, jego weryfikacja oraz przeprowadzenie predykcji.**
+
+
+##Część empiryczna
+###1. Transformacje na zbiorze danych
+Początkowo wczytamy dane i biblioteki oraz przyględniemy się jak wyglądają początkowe obserwacje
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library(fastDummies)
+library(kableExtra)
+library(dplyr)
+library(psych)
+library(ggplot2)
+data <-read.csv("IiE20192020dataset19.csv", sep = ";")
+data[c(1:10),] %>% 
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", "hover")
+```
+Wszystkie zmienne poza $X7$ (która jest zmienną jakościową) są zmiennymi ilościowymi. Nasze dane posiadają także braki, dlatego należy się tym zająć. Sprawdzimy ile obserwacji ma wartości NA.
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+sum(is.na(data))
+```
+Z całego zbioru 1000 obserwacji tylko 24 ma wartości NA. Jest to mniej niż 3%, zatem usuniemy te obserwacje z naszego zbioru danych
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+data <- na.omit(data)
+```
+Zajmiemy się teraz zmienną $X7$, która jest jakościowa. W celu jej analizy zamienimy ją na szereg zmiennych zero - jedynkowych. Taka zmienna przyjmuje wartość jeden, gdy jakies zjawisko wystepuje i zero w przeciwnym przypadku. Jednak wprowadzenie takich zmiennych powoduje powstanie zjawiska współliniowości (dummy variable trap). Aby temu zapobiec należy nie brać pod uwage jednej kategorii, zazwyczaj robi się to dla tej, która ma najwięcej obserwacji. Zmienna C jest najczęściej przyjmowaną wartością, dlatego to jej sie pozbędziemy.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+sum(dmmy$.data_A == 1)
+sum(dmmy$.data_B == 1)
+sum(dmmy$.data_C == 1)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+dmmy <- dummy_cols(data$X7)
+data <- cbind(data, dmmy)
+data <- data[,-c(8,9,12)]
+colnames(data)[8:9] <- c("A", "B") 
+```
+
+##2. Podział próbki na zbiór uczący i testowy 
+Dokonamy teraz podziału danych na zbiór uczący i testowy. Jakoże nie mamy już 1000 danych, tylko 976 to podział zostawimy w takich samych proporcjach jak zostało to zadane (proporcje 1:3)
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+set.seed(293487)
+train.inx <- sample(1:976, 732)
+data.train <- data[train.inx,]
+data.test <- data[-train.inx,]
+```
+
+##3. Prezentacja i opis danych.
+Sprawdzimy teraz statystyki naszych danych
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data %>%
+  describe.by() %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped")
+```
+OPIS - ja zrobie
+  
+  Sprawdzimy jeszcze jak prezentują się współczynniki zmienności (poza zmiennymi jakościowymi)
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+wsp.zm <- function(x) 
+{
+  sd(x)/mean(x)
+}
+wsp.zm(data[,-c(8,9)])
+```
+#TU SIE COS JEBIE
+#Walniesz wykresy dla kazdej zmiennej?
+  
+```{r}
+
+```
+
+##4. Dobór zmiennych do modelu
+Opierając się na metodach Hellwiga i krokowej wstecz sprawdzimy, które zmiennej zostaną wybrane do modelu
+
+
+```{r}
+model <- lm(Y ~ ., data.train)
+step(model, direction = 'backward')
+```
+  
+  
+  
+  
