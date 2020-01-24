@@ -37,3 +37,4 @@ summary(model)
 
 source("Hellwig Method.R")
 hellwig(data.train[, 1], data.train[, -1])
+#asf

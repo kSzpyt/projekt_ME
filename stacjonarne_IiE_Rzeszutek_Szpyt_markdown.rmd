@@ -18,7 +18,8 @@ library(kableExtra)
 library(dplyr)
 library(psych)
 library(ggplot2)
-data <-read.csv("IiE20192020dataset19.csv", sep = ";")
+library(gridExtra)
+data <-read.csv("IiE20192020dataset19.csv", sep = ";", dec = ",")
 data[c(1:10),] %>% 
   kable() %>%
   kable_styling(bootstrap_options = "striped", "hover")
@@ -56,6 +57,7 @@ set.seed(293487)
 train.inx <- sample(1:976, 732)
 data.train <- data[train.inx,]
 data.test <- data[-train.inx,]
+train.length <- dim(data.train)[1]
 ```
 
 ##3. Prezentacja i opis danych.
@@ -87,11 +89,21 @@ OPIS - ja zrobie
 #TU SIE COS JEBIE
 #Walniesz wykresy dla kazdej zmiennej?  
 # spokoo
-```{r}
+```{r fig.align='center',fig.height=15, fig.width=20}
+gg.list <- list()
 for (x in 1:(length(data.train) - 2)) {
-  plot(data.train[, x], type = "l", main = as.character(x))
+  gg.list[[x]] <- data.train %>%
+    ggplot(aes(x = 1:732)) +
+    geom_line(aes_q(y = as.name(names(data)[x])))
+  
 }
-
+grid.arrange(gg.list[[1]], 
+             gg.list[[2]], 
+             gg.list[[3]], 
+             gg.list[[4]], 
+             gg.list[[5]],
+             gg.list[[6]], 
+             gg.list[[7]], ncol = 2) 
 ```
 
   
