@@ -24,6 +24,7 @@ library(ggplot2)
 library(gridExtra)
 library(lmtest)
 library(car)
+library(tseries)
 data <-read.csv("IiE20192020dataset19.csv", sep = ";")
 data[c(1:10),] %>% 
   kable() %>%
@@ -127,61 +128,64 @@ hellwig(data.train[, 1], data.train[, -1])
 model <- lm(Y ~ ., data.train)
 step(model, direction = 'backward')
 ```
-Metoda Hellwiga wskazuje na wybranie zmiennych X4, A i B, natomiast metoda krokowa na zmienne X1, X3, X4, X6, A i B. Wybrana zostanie druga opcja 
-
-```{r echo=TRUE, message=FALSE, warning=FALSE}
-model <- lm(Y ~ X1 + X3 + X4 + X6 + A + B, data.train)
-summary(model)
-
-```
-W celu sprawdzenia, które zmienne są istotne (testem t - Studenta) sprawdzimy jego założenie, jakim jest normalność reszt 
- 
+Metoda Hellwiga wskazuje na wybranie zmiennych X4, A i B, natomiast metoda krokowa na zmienne X1, X3, X4, X6, A i B. Sprawdzimy rozkład reszt w obu tych modelach testem Shapiro - Wilka. Hipotezy:
+  
   *H0: rozkład badanej cechy jest rozkładem normalnym*
    
   
   *H1: rozkład badanej cechy nie jest rozkładem normalnym*
-  
-```{r echo=TRUE, message=FALSE, warning=FALSE}
-shapiro.test(residuals(model))
 
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+model_step <- lm(Y ~ X1 + X3 + X4 + X6 + A + B, data.train)
+model_hel <- lm(Y ~ X4 + A + B, data.train)
+shapiro.test(model_step$residuals)
+shapiro.test(model_hel$residuals)
+jarque.bera.test(model_step$residuals)
+jarque.bera.test(model_hel$residuals)
 ```
-Reszty w naszym modelu nie mają rozkładu normalnego, zatem pozostawimy wszystkie zmienne, które zostały do niego wybrane. Sprawdzimy założenie MNK jakim jest stała wariancja reszt  
+
+Żaden z tych modeli nie ma normalnego rozkładu reszt, oto ich wykresy
+```{r echo=FALSE, fig.align='center', message=FALSE, warning=FALSE}
+plot(density(model_step$residuals))
+plot((density(model_hel$residuals)))
+```
+
+Sprawdzimy założenie o stałości wariancji składnika losowego w modelach
   
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-plot(residuals(model), type = "l")
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.align='center'}
+plot(residuals(model_step), type = "l")
+plot(residuals(model_hel), type = "l")
 ```
-Wykres reszt wskazuje na występowanie heteroskdastyczności, ale dla pewności uruchominony zostanie test Breuscha - Pagana, którego hipotezy to:
+Wykres reszt wskazuje na występowanie heteroskdastyczności, ale dla pewności uruchomiony zostanie test Breuscha - Pagana, którego hipotezy to:
   
   *H0: homoskedastyczność*
   
-  *H1: heteroskedatyczność*
+  *H1: heteroskedastyczność*
   
   
-```{r}
+```{r echo=TRUE, message=FALSE, warning=FALSE}
 bptest(model)
-ncvTest(model)
 ```
-Aby ominąć problem heteroskedastyczności użyta zostanie metoda WMNK. W tym celu swotrzono model pomocniczy, gdzie zmienną objaśnianą są reszty z poprzedniego modelu (wartość bezwzględna), a zmiennymi objaśniającymi będą zmienne z poprzedniego modelu.
-```{r}
+
+Aby ominąć problem heteroskedastyczności użyta zostanie ważona metoda największej wiarygodności. W tym celu stworzymy model pomocniczy, gdzie zmienną objaśnianą są reszty z poprzedniego modelu (wartość bezwzględna), a zmiennymi objaśniającymi będą zmienne z poprzedniego modelu.
+```{r echo=TRUE, message=FALSE, warning=FALSE}
 model.helpmegod <- lm(abs(residuals(model)) ~ X1 + X3 + X4 + X6 + A + B, data.train)
 ```
+
 Na podstawie powyższego modelu wyliczone zostaną reszty
 ```{r}
 wages <- (model.helpmegod$fitted.values)^-2
-
-```
-
-
-
-```{r}
-#model pomocniczny
-#zmienna objaśniana to reszty do kwadratu a zm objaśniające to zmienne z poprzedniego modelu
+#model pomocniczny - zmienna objaśniana to reszty do kwadratu a zm objaśniające to zmienne z poprzedniego modelu
 
 model.wg <- lm(Y ~ X1 + X3 + X4 + X6 + A + B, data.train, weights=wages)
 summary(model.wg)
 ```
+ 
   
   
+```{r}
+
+```
   
   
   

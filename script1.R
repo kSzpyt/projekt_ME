@@ -3,11 +3,12 @@ library(ggplot2)
 library(gridExtra)
 library(dplyr)
 library(tid)
+library(lmtest)
 
 data <- read.csv("IiE20192020dataset19.csv", sep = ";")
 
 
-set.seed(293487)
+set.seed(2137)
 inx <- sample(1:1000, 750)
 data.train <- data[inx, ]
 data.test <- data[-inx, ]
@@ -60,3 +61,27 @@ summary(model)
 source("Hellwig Method.R")
 hellwig(data.train[, 1], data.train[, -1])
 #asf
+
+
+1/sapply(data.train[, -c(1, 3, 6)], sd)^2
+
+model <- lm((Y) ~ (X4) + A + B, data.train)
+summary(model)
+shapiro.test(residuals(model))
+bptest(model)
+plot(residuals(model), type = "l")
+
+#model pomocniczny
+#zmienna objaśniana to reszty do kwadratu a zm objaśniające to zmienne z poprzedniego modelu
+model.helpmegod <- lm(abs(residuals(model)) ~ X1 + X3 + X4 + X6 + A + B, data.train)
+
+
+sd.variance <- (model.helpmegod$fitted.values)^-2
+
+model.wg <- lm(log(Y) ~ X1 + X3 + X4 + X6 + A + B, data.train, weights=sd.variance)
+summary(model.wg)
+
+shapiro.test(residuals(model.wg))
+
+
+sum(residuals(model) - residuals(model.wg))
