@@ -21,6 +21,9 @@ library(kableExtra)
 library(dplyr)
 library(psych)
 library(ggplot2)
+library(gridExtra)
+library(lmtest)
+library(car)
 data <-read.csv("IiE20192020dataset19.csv", sep = ";")
 data[c(1:10),] %>% 
   kable() %>%
@@ -92,10 +95,23 @@ cbind(describe(data.train)[c(3, 4, 11, 12)], zm.df) %>%
   
   Zmienna X6 osiąga średnią w wysokości 500.70. Odchylenie standardowe wynosi 289.24. Skośność wskazuje, że nieznaczne więcej obserwacji powyżej średniej.
 
-```{r}
+```{r fig.align='center'}
+gg.list <- list()
 for (x in 1:(length(data.train) - 2)) {
-  plot(data.train[, x], type = "l", main = as.character(x))
+  # plot(data.train[, x], type = "l", main = as.character(x), ylab = paste0("Y", as.character(x)))
+  gg.list[[x]] <- data.train %>%
+    ggplot(aes(x = 1:732)) +
+    geom_line(aes_q(y = as.name(names(data)[x])))
+  
+  # print(gg)
 }
+grid.arrange(gg.list[[1]], 
+             gg.list[[2]], 
+             gg.list[[3]], 
+             gg.list[[4]], 
+             gg.list[[5]],
+             gg.list[[6]], 
+             gg.list[[7]], ncol = 2)  
 
 ```
 
@@ -106,14 +122,88 @@ Opierając się na metodach Hellwiga i krokowej wstecz sprawdzimy, które zmienn
 #metoda Hellwiga
 source("Hellwig Method.R")
 hellwig(data.train[, 1], data.train[, -1])
-```
 
-
-```{r echo=TRUE, message=FALSE, warning=FALSE}
 #metoda krokowa wstecz
 model <- lm(Y ~ ., data.train)
 step(model, direction = 'backward')
 ```
+Metoda Hellwiga wskazuje na wybranie zmiennych X4, A i B, natomiast metoda krokowa na zmienne X1, X3, X4, X6, A i B. Wybrana zostanie druga opcja 
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+model <- lm(Y ~ X1 + X3 + X4 + X6 + A + B, data.train)
+summary(model)
+
+```
+W celu sprawdzenia, które zmienne są istotne (testem t - Studenta) sprawdzimy jego założenie, jakim jest normalność reszt 
+ 
+  *H0: rozkład badanej cechy jest rozkładem normalnym*
+   
+  
+  *H1: rozkład badanej cechy nie jest rozkładem normalnym*
+  
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+shapiro.test(residuals(model))
+
+```
+Reszty w naszym modelu nie mają rozkładu normalnego, zatem pozostawimy wszystkie zmienne, które zostały do niego wybrane. Sprawdzimy założenie MNK jakim jest stała wariancja reszt  
+  
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+plot(residuals(model), type = "l")
+```
+Wykres reszt wskazuje na występowanie heteroskdastyczności, ale dla pewności uruchominony zostanie test Breuscha - Pagana, którego hipotezy to:
+  
+  *H0: homoskedastyczność*
+  
+  *H1: heteroskedatyczność*
+  
+  
+```{r}
+bptest(model)
+ncvTest(model)
+```
+Aby ominąć problem heteroskedastyczności użyta zostanie metoda WMNK. W tym celu swotrzono model pomocniczy, gdzie zmienną objaśnianą są reszty z poprzedniego modelu (wartość bezwzględna), a zmiennymi objaśniającymi będą zmienne z poprzedniego modelu.
+```{r}
+model.helpmegod <- lm(abs(residuals(model)) ~ X1 + X3 + X4 + X6 + A + B, data.train)
+```
+Na podstawie powyższego modelu wyliczone zostaną reszty
+```{r}
+wages <- (model.helpmegod$fitted.values)^-2
+
+```
+
+
+
+```{r}
+#model pomocniczny
+#zmienna objaśniana to reszty do kwadratu a zm objaśniające to zmienne z poprzedniego modelu
+
+model.wg <- lm(Y ~ X1 + X3 + X4 + X6 + A + B, data.train, weights=wages)
+summary(model.wg)
+```
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
   
   
   
