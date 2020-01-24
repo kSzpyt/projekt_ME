@@ -1,16 +1,19 @@
 ---
 title: "Projekt zaliczeniowy"
-89au9thor: "Katarzyna Rzeszutek, Karol Szpyt"
-da89te: "19 stycznia 2020"
-output: html_document
+author: "Katarzyna Rzeszutek, Karol Szpyt"
+date: "19 stycznia 2020"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 4
 encoding: "utf - 8"
-toc: true
+    
 ---
 Dane z jakich korzystano w poniższym opracowaniu to zestaw 19. **Celem niniejszego projektu jest budowa jak najlepiej dopasowanego modelu do danych, jego weryfikacja oraz przeprowadzenie predykcji.**
 
 
-##Część empiryczna
-###1. Transformacje na zbiorze danych
+###Część empiryczna
+####1. Transformacje na zbiorze danych
 Początkowo wczytamy dane i biblioteki oraz przyględniemy się jak wyglądają początkowe obserwacje
 ```{r echo=TRUE, message=FALSE, warning=FALSE}
 library(fastDummies)
@@ -18,8 +21,7 @@ library(kableExtra)
 library(dplyr)
 library(psych)
 library(ggplot2)
-library(gridExtra)
-data <-read.csv("IiE20192020dataset19.csv", sep = ";", dec = ",")
+data <-read.csv("IiE20192020dataset19.csv", sep = ";")
 data[c(1:10),] %>% 
   kable() %>%
   kable_styling(bootstrap_options = "striped", "hover")
@@ -50,18 +52,17 @@ colnames(data)[8:9] <- c("A", "B")
 data[, -c(8, 9)] <- as.data.frame(lapply(as.list(data[, -c(8, 9)]), as.numeric))
 ```
 
-##2. Podział próbki na zbiór uczący i testowy 
+###2. Podział próbki na zbiór uczący i testowy 
 Dokonamy teraz podziału danych na zbiór uczący i testowy. Jakoże nie mamy już 1000 danych, tylko 976 to podział zostawimy w takich samych proporcjach jak zostało to zadane (proporcje 1:3)
 ```{r echo=TRUE, message=FALSE, warning=FALSE}
 set.seed(293487)
 train.inx <- sample(1:976, 732)
 data.train <- data[train.inx,]
 data.test <- data[-train.inx,]
-train.length <- dim(data.train)[1]
 ```
 
-##3. Prezentacja i opis danych.
-Sprawdzimy teraz statystyki naszych danych
+###3. Prezentacja i opis danych.
+Sprawdzimy teraz statystyki naszych danych, poza danymi binarnymi.
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 wsp.zm <- function(dat) 
 {
@@ -76,46 +77,40 @@ cbind(describe(data.train)[c(3, 4, 11, 12)], zm.df) %>%
   kable() %>%
   kable_styling(bootstrap_options = "striped")
 ```
-OPIS - ja zrobie
+
+Średnia zmiennej objaśnianej wynosi 496.42, przy medianie równej 498.5 i odchyleniu standardowym 289.40. Skośność wynosi 0, co świadczy o braku asymetrii wyników - obserwacje są symetrycznie rozłożone. Kurtoza osiąga wartość -1.24 - w każdej ze zmiennych występuje ujemna, więc słaba koncentracja wyników wokół średniej, czyli można powiedzieć, że część wyników każdej ze zmiennych jest oddalona od średniej. Zmienność tej zmiennej jest na poziomie 58%, co jest poprawnym stopniem.
   
-  Sprawdzimy jeszcze jak prezentują się współczynniki zmienności (poza zmiennymi jakościowymi)
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-# wsp.zm <- function(x) 
-# {
-#   sd(x)/mean(x)
-# }
-# wsp.zm(data[,-c(8,9)])
-```
-#TU SIE COS JEBIE
-#Walniesz wykresy dla kazdej zmiennej?  
-# spokoo
-```{r fig.align='center',fig.height=15, fig.width=20}
-gg.list <- list()
+  Zmienna X1 ma średnią o wartości 500.44,  przy medianie 503.5 i odchyleniu 287.23. Skośność na poziomie - 0.01 świadczy o delikatnej asymetrii w lewo, czyli nieznacznie więcej obserwacji jest większa od średniej. Zmienność osiąga poziom 57%.
+  
+  Zmienna X2 osiąga średnią 500.60, medianę 514 a odchylenie standardowe 283.43. Skośność jest ponownie nieznacznie mniejsza od zera.
+  
+  Zmienna X3 ma średnią 500.91, a mediana 496. Odchylenie standardowe wynosi 289.75. Skośność na poziomie 0.01 świadczy o delikatnym odchyleniu obserwacji w prawo. Zmienna osiąga poziom 58%.
+  
+  Zmienna X4 osiąga średnią 489.62, medianę 489.5 i odchylenie 291.18. Skośnośc wskazuje na delikatne odchylenie danych poniżej średniej. Współczynnik zmienności jest na poziomie 59%.
+  
+  Zmienna X5 ma średnią w wielkości 496.71, przy medianie 486.5 i odchyleniu 287.98. Skośność na poziomie 0.04 świadczy o odchyleniu obserwacji poniżej średniej. Współczynnik zmienności jest na poziomie 58%.
+  
+  Zmienna X6 osiąga średnią w wysokości 500.70. Odchylenie standardowe wynosi 289.24. Skośność wskazuje, że nieznaczne więcej obserwacji powyżej średniej.
+
+```{r}
 for (x in 1:(length(data.train) - 2)) {
-  gg.list[[x]] <- data.train %>%
-    ggplot(aes(x = 1:732)) +
-    geom_line(aes_q(y = as.name(names(data)[x])))
-  
+  plot(data.train[, x], type = "l", main = as.character(x))
 }
-grid.arrange(gg.list[[1]], 
-             gg.list[[2]], 
-             gg.list[[3]], 
-             gg.list[[4]], 
-             gg.list[[5]],
-             gg.list[[6]], 
-             gg.list[[7]], ncol = 2) 
-```
-
-  
-```{r}
 
 ```
 
-##4. Dobór zmiennych do modelu
-Opierając się na metodach Hellwiga i krokowej wstecz sprawdzimy, które zmiennej zostaną wybrane do modelu
+###4. Dobór zmiennych do modelu
+Opierając się na metodach Hellwiga i krokowej wstecz sprawdzimy, które zmienne zostaną wybrane do modelu
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+#metoda Hellwiga
+source("Hellwig Method.R")
+hellwig(data.train[, 1], data.train[, -1])
+```
 
 
-```{r}
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+#metoda krokowa wstecz
 model <- lm(Y ~ ., data.train)
 step(model, direction = 'backward')
 ```
