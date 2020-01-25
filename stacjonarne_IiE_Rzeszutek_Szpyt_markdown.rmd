@@ -26,6 +26,7 @@ library(lmtest)
 library(car)
 library(tseries)
 library(normtest)
+library(strucchange)
 data <-read.csv("IiE20192020dataset19.csv", sep = ";")
 data[c(1:10),] %>% 
   kable() %>%
@@ -130,7 +131,7 @@ hellwig(data.train[, 1], data.train[, -1])
 model <- lm(Y ~ ., data.train)
 step(model, direction = 'backward')
 ```
-Metoda Hellwiga wskazuje na wybranie zmiennych A i B, natomiast metoda krokowa na zmienne X1, X3, X4, X5, A i B. Zdecydowaliśmy, że będziemy działać na modelu wskazanym przez metodę Hellwiga w dalszej części projektu
+Metoda Hellwiga wskazuje na wybranie zmiennych A i B, natomiast metoda krokowa na zmienne X1, X3, X4, X5, A i B. **Zdecydowaliśmy, że będziemy działać na obu modelach w dalszej części projektu i po kolei je weryfikować, aż dojdziemy do satysfakcjonującej postaci.**
   
   
   Sprawdzimy rozkład reszt w obu tych modelach testami Shapiro - Wilka i Jarque - Bera. Hipotezy:
@@ -140,7 +141,7 @@ Metoda Hellwiga wskazuje na wybranie zmiennych A i B, natomiast metoda krokowa n
   
   *H1: rozkład badanej cechy nie jest rozkładem normalnym*
 
-```{r echo=TRUE, message=FALSE, warning=FALSE}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 model_hel <- lm(Y ~ A + B, data.train)
 model_step <- lm(Y ~ X1 + X3 + X4 + X5 + A + B, data.train)
 shapiro.test(model_hel$residuals)
@@ -154,53 +155,185 @@ jarque.bera.test(model_step$residuals)
 plot(density(model_step$residuals))
 plot((density(model_hel$residuals)))
 ```
-**Mimo rozbieżności w wynikach obu testów założymy, że reszty naszego modelu mają asymptotyczny rozkład normalny, ze względu na dużą próbę.** Możemy teraz zweryfikować wyniki testu t - Studenta, bo spełnione jest jego założenie.
-
+**Mimo rozbieżności w wynikach obu testów założymy, że reszty naszego modelu mają asymptotyczny rozkład normalny, ze względu na dużą próbę.** Sprawdzimy kolejne założenia jakie powinien spełniać model, mianowicie: istotność zmiennych, istotność współczynnika determinacji $R^2$, koincydencja, poprawna postać funkcyjna modelu, brak współliniowości oraz stabilność parametrów. Weryfikacji ulegną model sugerowany przez metodę Hellwiga i krokową wstecz
+  
+  **Model metody Hellwiga**
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 summary(model_hel)
 ```
-W modelu wskazanym przez metodę Hellwiga wszystkie zmienne są istotne. Model wyjaśnia tylko 0.25 zmiennej zależnej.  
+**W modelu wskazanym przez metodę Hellwiga wszystkie zmienne są istotne**. Oceniliśmy to na podstawie testu t-Studenta (który ma założenie o normalności rozkładu reszt), a jego hipotezy to:
+  
+  *H0: dana zmienna nie oddziałuje istotnie na zmienną objaśnianą*
+  
+  *H1: dana zmienna oddziałuje istotnie na zmienną objaśnianą.*
+
+**Model wyjaśnia tylko 0.25 zmiennej zależnej** - współczynnik $R^2$. Niestety jest to bardzo niski poziom 
   
   Sprawdzimy czy wielkość współczynnika determinacji jest statystycznie istotna. Użyjemy do tego testu Fishera - Snedecora, który służy do badania istotności współczynnika korelacji wielorakiej. Hipotezy:
   
   *H0: współczynnik korelacji wielorakiej jest równy 0 - nieistotny*
-
   
   *H1: współczynnik korelacji wielorakiej jest większy od 0 - istotny*
-Wartość p-value dla tego testu wskazuje na odrzucenie $H_0$ - współczynnik determinacji $R^2$ jest istotny.
+  
+  Wartość p-value dla tego testu wskazuje na odrzucenie $H_0$ - **współczynnik determinacji $R^2$ jest istotny**.
+  
+  Sprawdzimy koincydencję. W tym celu sprawdzamy czy spełniony jest warunek 
+$$sgn(r_{i}) = sgn(a_{i})$$ gdzie i = 1,2,,,,k. 
+  
+  $a_{i}$ to oszacowanie parametru strukturalnego występującego przy zmiennej objaśniającej $X_{i}$, a $r_{i}$ jest współczynnikiem korelacji liniowej Pearsona między zmienną $X_{i}$ a $Y_{i}$
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+korelacje <- cor(data.train, method = "pearson")
+korelacje[1,c(8,9)]
+model_hel
+```
+**Model wynikający z metody Hellwiga jest koincydentny**, gdyż parametr stojący przy zmiennej $B$ jest ujemny, tak samo jak współczynnik korelacji liniowej tej zmiennej z $Y$.
+  
+  Sprawdzimy poprawność funkcyjną modelu testem RESET. Hipotezy:
+  
+  *H0: wybór postaci analitycznej modelu jest prawidłowy,*
+  
+  *H1: wybór postaci analitycznej modelu nie jest prawidłowy,*
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+resettest(model_hel)
+```
+Model wybrany na podstawie metody Hellwiga ma poprawną powstać funkcyjną modelu, a więc jego **postać (liniowa) jest poprawna**.
 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+vif(model_hel)
+```
+Współliniowość oceniamy *czynnikiem inflacji wariancji* (VIF). Wskaźnik ten pokazuje ile razy wariancja predyktora jest większa od wartości niezakłóconej współliniowością, gdzie 1 jest najmniejszą możliwą wartością, a 10 największą. **W modelu wybranym na podstawie metody Hellwiga nie ma zjawiska współliniowości**.
+  
+  Stabilność parametrów sprawdzimy za pomocą testu Chowa. Służy do weryfikacji czy parametry modelu będą takie same dla kilku różnych podpróbek. Hipotezy:
+  
+  *H0: parametry są takie same w podpróbkach - są stabilne*
+  
+  *H1: parametry nie są takie same w podpróbkach - nie są stabilne*
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+sctest(model_hel, type = "chowa")
+```
+Wynik wskazuje na przyjęcie $H_0$ - **parametry tego modelu są stabilne**.
+  
+  Sprawdzimy założenie MNK o stałości wariancji składnika losowego modelu. Zobaczmy jak reszty prezentują się na wykresie
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.align='center'}
+plot(residuals(model_hel), type = "l")
+```
+Wykres reszt wskazuje na występowanie heteroskedastyczności, ale dla pewności uruchomiony zostanie test Breuscha - Pagana oraz , którego hipotezy to:
+  
+  *H0: homoskedastyczność*
+  
+  *H1: heteroskedastyczność* Zalezy co wyjdzie mi z WMNK jak wyjdzie chujowo to napisz ze tu jest homo, jakwyjdzie spoko to napisz ze jest hetero i stosuj ten z ważonej
+  
+  **Model metody krokowej wstecz**
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 summary(model_step)
 ```
 W modelu sugerowanym przez metodę krokową wstecz $X_5$ okazała się nieistotna - pozbędziemy się jej z modelu.
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-model_step <- lm(sqrt(Y) ~ sqrt(X1) + (X3) + (X4)  + A, data.train)
+model_step <- lm(Y ~ X1 + (X3) + (X4)  + A + B, data.train)
 summary(model_step)
-
-korelacje <- cor(data.train, method = "pearson")
-vif(model_step) #WSZYSTKO BANGLA ALE MEGA MAŁE r2
-resettest(model_step)
-harvtest(model_step)
 ```
-Model wyjaśnia tylko 0.28 zmienności zmiennej zależnej, mimo tego współczynnik determinacji jest istotny.
+**Model wyjaśnia tylko 0.28 zmienności zmiennej zależnej - $R^2$, mimo tego współczynnik determinacji (jak i wszystkie zmienne) jest istotny**.
   
-  Sprawdzimy założenie o stałości wariancji składnika losowego w obu modelach
+  Sprawdzimy koincydencję
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+korelacje <- cor(data.train, method = "pearson")
+korelacje[1,c(2,4,5,8,9)]
+model_step
+```
+Model wynikający z metody krokowej jest koincydentny.
+  
+  Sprawdzimy poprawność funkcyjną modelu
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+resettest(model_step)
+```
+Niestety nasz model nie ma poprawnej postaci funkcyjnej, zatem postać liniowa nie będzie dla niego właściwa. Należy dokonać pewnych tranformacji w celu uzyskania poprawnej postaci modelu. Będziemy próbować róznych postaci modelu i od razu prezentować wyniki jakie pokazał test RESET, w celu znalezienia poprawnej postaci
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+#Logarytmy
+#logarytm zmiennej objaśnianej
+model_step <- lm(log(Y) ~ X1 + X3 + X4  + A + B, data.train)
+resettest(model_step)
+#logarytm wszystkich zmiennych (oprócz zmiennych jakościowych)
+model_step <- lm(log(Y) ~ log(X1) + log(X3) + log(X4)  + A + B, data.train)
+resettest(model_step)
+#logarytmy tylko zmiennych objaśniających
+model_step <- lm(Y ~ log(X1) + log(X3) + log(X4)  + A + B, data.train)
+resettest(model_step)
+
+#Podniesienie do potęgi drugiej
+#zmiennej objaśnianej
+model_step <- lm((Y)^2 ~ X1 + X3 + X4  + A + B, data.train)
+resettest(model_step)
+#wszystkich zmiennych (oprócz zmiennych jakościowych)
+model_step <- lm((Y)^2 ~ (X1)^2 + (X3)^2 + (X4)^2  + A + B, data.train)
+resettest(model_step)
+#wszystkich zmiennych
+model_step <- lm((Y)^2 ~ (X1)^2 + (X3)^2 + (X4)^2  + A^2 + B^2, data.train)
+resettest(model_step)
+#tylko zmiennych objaśniających (bez jakościowych)
+model_step <- lm(Y ~ (X1)^2 + (X3)^2 + (X4)^2  + A + B, data.train)
+resettest(model_step)
+#tylko zmiennych objaśniających
+model_step <- lm(Y ~ (X1)^2 + (X3)^2 + (X4)^2  + A^2 + B^2, data.train)
+resettest(model_step)
+
+#Podniesienie do potęgi trzeciej
+#zmiennej objaśnianej
+model_step <- lm((Y)^3 ~ X1 + X3 + X4  + A + B, data.train)
+resettest(model_step)
+#wszystkich zmiennych (oprócz zmiennych jakościowych)
+model_step <- lm((Y)^3 ~ (X1)^3 + (X3)^3 + (X4)^3  + A + B, data.train)
+resettest(model_step)
+#wszystkich zmiennych
+model_step <- lm((Y)^3 ~ (X1)^3 + (X3)^3 + (X4)^3  + A^3 + B^3, data.train)
+resettest(model_step)
+#tylko zmiennych objaśniających (bez jakościowych)
+model_step <- lm(Y ~ (X1)^3 + (X3)^3 + (X4)^3  + A + B, data.train)
+resettest(model_step)
+#tylko zmiennych objaśniających
+model_step <- lm(Y ~ (X1)^3 + (X3)^3 + (X4)^3  + A^3 + B^3, data.train)
+resettest(model_step)
+
+#Pierwiastki
+#zmiennej objaśnianej
+model_step <- lm(sqrt(Y) ~ X1 + X3 + X4  + A + B, data.train)
+resettest(model_step)
+#wszystkich zmiennych (oprócz zmiennych jakościowych)
+model_step <- lm(sqrt(Y) ~ sqrt(X1) + sqrt(X3) + sqrt(X4)  + A + B, data.train)
+resettest(model_step)
+#tylko zmiennych objaśniających
+model_step <- lm(Y ~ sqrt(X1) + sqrt(X3) + sqrt(X4)  + A + B, data.train)
+resettest(model_step)
+```
+Niestety po mimo podjętych prób nie udało się znależć poprawnej postaci funkcyjnej modelu wskazanego przez metodę zmiennej krokowej.
+  
+  Sprawdzimy jeszcze założenie o stałości wariancji składnika losowego w obu modelach - dla modelu wskazanego przez metodę step przez jakimikolwiek tranformacjami, czyli :
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+model_step <- lm(Y ~ X1 + (X3) + (X4)  + A + B, data.train)
+model_step
+```
   
 ```{r echo=FALSE, message=FALSE, warning=FALSE, fig.align='center'}
 plot(residuals(model_step), type = "l")
 plot(residuals(model_hel), type = "l")
 ```
-Wykres reszt wskazuje na występowanie heteroskedastyczności, ale dla pewności uruchomiony zostanie test Breuscha - Pagana, którego hipotezy to:
+Wykres reszt obu modeli wskazuje na występowanie heteroskedastyczności, ale dla pewności uruchomiony zostanie test Breuscha-Pagana (w 2 odłonach - *bptest* i *ncvTest*) oraz Goldfelda-Quandta, których hipotezy to:
   
-  *H0: homoskedastyczność*
+  *H0: homoskedastyczność składnika losowego*
   
-  *H1: heteroskedastyczność*
-  
-  
+  *H1: heteroskedastyczność składnika losowego*
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 bptest(model_hel)
 bptest(model_step)
+ncvTest(model_hel)
+ncvTest(model_step)
+gqtest(model_hel)
+gqtest(model_step)
 ```
+Testy Breuscha - Pagana raz odrzucają $H_0$ a raz przyjmują dla każdego z modeli, gdzie test Goldfelda-Quandta wskazuje na przyjęcie hipotezy o homoskedastyczności w obu modelach. Na tej podstawie można by sądzić, że modele są homoskedastyczne. 
+  
+  Jednak wiemy już, że model wskazany metodą krokową nie ma poprawnej postaci funkcyjnej, dlatego spróbujemy zająć się zjawiskiem heteroskedastyczności. Mimo tego, że 2 testy wskazały na jej brak, patrząc na wykres reszt mamy co do tego wątpliwości, dlatego spróbujemy wyestymować ten model jeszcze raz, tym razem uzywająć ważonej metody najmniejszych kwadratów i sprawdzimy czy znajdziemy poprawną postać funkcyjną oraz czy inne założenie poprawnego modelu będą spełnione.
+  
+  Jeśli chodzi o model wskazany metodą Hellwiga także mamy wątpliwości co do homoskedastyczności rozkładu reszt i też spróbujemy wyestymować ten model ważoną MNK, mimo że model przeszedł poprawnie wszystkie testy. Nie wiemy czy takie podejście jest prawidłowe, ale zaryzykujemy i sprawdzimy to:)
 
 # Ważona MNK
 Aby ominąć problem heteroskedastyczności użyta zostanie ważona metoda najmniejszych kwadratów. Pozwala ona nadać obserwacjom o niskiej wariancji składnika losowego większe wagi, a tym które mają ją zbyt wysoką mniejsze wagi. W ten sposób eliminuje się niekorzystny wpływ zakłócających obserwacji na otrzymane oceny estymatorów. Oceny parametrów są liniowymi, zgodnymi, nieobciążonymi i najefektywniejszymi szacunkami parametrów strukturalnych modelu.
@@ -244,12 +377,12 @@ W obu modelach nadal występuje heteroskedastyczność, jednak nie będzie to ju
 #Badanie współliniowości, postaci funkcyjnej modelu i stabilności parametrów
 Sprawdzimy zjawisko współliniowości. Oceniamy ją *czynnikiem inflacji wariancji - VIF*. Wskaźnik ten pokazuje ile razy wariancja predyktora jest większa od wartości niezakłóconej współliniowością, gdzie 1 jest najmniejszą możliwą wartością, a 10 największą
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-vif(model.wg)
+vif(model.wg_hel)
 ```
 Wartości A i B cechują się współliniowości, zatem musimy się pozbyć ich obu i ponownie sprawdzimy współliniowość
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 model.wg <- lm(Y ~ X4, data.train, weights=wages)
-vif(model.wg)
+#vif(model.wg)
 ```
 Skoro ze współliniowścią nie ma już problemów, sprawdzimy **poprawność postaci funkcyjnej modelu testem RESET.** Hipotezy:
   
@@ -258,7 +391,7 @@ Skoro ze współliniowścią nie ma już problemów, sprawdzimy **poprawność p
   *H1: wybór postaci analitycznej modelu nie jest prawidłowy,*
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-resettest(model.wg)
+resettest(model.wg_hel)
 ```
 Odrzucamy $H_0$ - podana postać nie jest poprawna. Dokonamy kilku tranformacji i sprawdzimy jeszcze raz poprawność postaci modelu
   
@@ -282,11 +415,7 @@ summary(model.wg)
 $R^2$ modelu wynosi 0.61 - nie jest to oszałamiający wynik, ale wystarczający do przeprowadzenia na nim prognox.
   
 ```{r}
-model.wg_hel
-summary(model.wg_hel)
-resettest(model.wg_hel)
-vif(model_hel)
-harvtest(model.wg_hel)
+
 ```
 
   
