@@ -13,7 +13,7 @@ Dane z jakich korzystano w poniższym opracowaniu to zestaw 19. **Celem niniejsz
 
 
 ###Część empiryczna
-####1. Transformacje na zbiorze danych
+#### 1. Transformacje na zbiorze danych
 Początkowo wczytamy dane i biblioteki oraz przyględniemy się jak wyglądają początkowe obserwacje
 ```{r echo=TRUE, message=FALSE, warning=FALSE}
 library(fastDummies)
@@ -25,12 +25,13 @@ library(gridExtra)
 library(lmtest)
 library(car)
 library(tseries)
+library(normtest)
 data <-read.csv("IiE20192020dataset19.csv", sep = ";")
 data[c(1:10),] %>% 
   kable() %>%
   kable_styling(bootstrap_options = "striped", "hover")
 ```
-Wszystkie zmienne poza $X7$ (która jest zmienną jakościową) są zmiennymi ilościowymi. Nasze dane posiadają także braki, dlatego należy się tym zająć. Sprawdzimy ile obserwacji ma wartości NA.
+Wszystkie zmienne poza $X_7$ (która jest zmienną jakościową) są zmiennymi ilościowymi. Nasze dane posiadają także braki, dlatego należy się tym zająć. Sprawdzimy ile obserwacji ma wartości NA.
 ```{r echo=TRUE, message=FALSE, warning=FALSE}
 sum(is.na(data))
 ```
@@ -39,7 +40,7 @@ Z całego zbioru 1000 obserwacji tylko 24 ma wartości NA. Jest to mniej niż 3%
 ```{r message=FALSE, warning=FALSE, include=FALSE}
 data <- na.omit(data)
 ```
-Zajmiemy się teraz zmienną $X7$, która jest jakościowa. W celu jej analizy zamienimy ją na szereg zmiennych zero - jedynkowych. Taka zmienna przyjmuje wartość jeden, gdy jakies zjawisko wystepuje i zero w przeciwnym przypadku. Jednak wprowadzenie takich zmiennych powoduje powstanie zjawiska współliniowości (dummy variable trap). Aby temu zapobiec należy nie brać pod uwage jednej kategorii, zazwyczaj robi się to dla tej, która ma najwięcej obserwacji. Zmienna C jest najczęściej przyjmowaną wartością, dlatego to jej sie pozbędziemy.
+Zajmiemy się teraz zmienną $X_7$, która jest jakościowa. W celu jej analizy zamienimy ją na szereg zmiennych zero - jedynkowych. Taka zmienna przyjmuje wartość jeden, gdy jakies zjawisko wystepuje i zero w przeciwnym przypadku. Jednak wprowadzenie takich zmiennych powoduje powstanie zjawiska współliniowości (dummy variable trap). Aby temu zapobiec należy nie brać pod uwage jednej kategorii, zazwyczaj robi się to dla tej, która ma najwięcej obserwacji. Zmienna C jest najczęściej przyjmowaną wartością, dlatego to jej sie pozbędziemy.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 dmmy <- dummy_cols(data$X7)
@@ -66,7 +67,7 @@ data.test <- data[-train.inx,]
 ```
 
 ###3. Prezentacja i opis danych.
-Sprawdzimy teraz statystyki naszych danych, poza danymi binarnymi.
+Sprawdzimy teraz statystyki naszych danych, poza danymi jakościowymi
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 wsp.zm <- function(dat) 
 {
@@ -96,7 +97,7 @@ cbind(describe(data.train)[c(3, 4, 11, 12)], zm.df) %>%
   
   Zmienna X6 osiąga średnią w wysokości 500.70. Odchylenie standardowe wynosi 289.24. Skośność wskazuje, że nieznaczne więcej obserwacji powyżej średniej.
 
-```{r fig.align='center'}
+```{r echo=FALSE, fig.align='center', message=FALSE, warning=FALSE}
 gg.list <- list()
 for (x in 1:(length(data.train) - 2)) {
   # plot(data.train[, x], type = "l", main = as.character(x), ylab = paste0("Y", as.character(x)))
@@ -117,7 +118,8 @@ grid.arrange(gg.list[[1]],
 ```
 
 ###4. Dobór zmiennych do modelu
-Opierając się na metodach Hellwiga i krokowej wstecz sprawdzimy, które zmienne zostaną wybrane do modelu
+  
+  Opierając się na metodach Hellwiga i krokowej wstecz sprawdzimy, które zmienne zostaną wybrane do modelu. Następnie sprawdzimy jak sie one prezentują 
 
 ```{r echo=TRUE, message=FALSE, warning=FALSE}
 #metoda Hellwiga
@@ -128,7 +130,10 @@ hellwig(data.train[, 1], data.train[, -1])
 model <- lm(Y ~ ., data.train)
 step(model, direction = 'backward')
 ```
-Metoda Hellwiga wskazuje na wybranie zmiennych X4, A i B, natomiast metoda krokowa na zmienne X1, X3, X4, X6, A i B. Sprawdzimy rozkład reszt w obu tych modelach testem Shapiro - Wilka. Hipotezy:
+Metoda Hellwiga wskazuje na wybranie zmiennych A i B, natomiast metoda krokowa na zmienne X1, X3, X4, X5, A i B. Zdecydowaliśmy, że będziemy działać na modelu wskazanym przez metodę Hellwiga w dalszej części projektu
+  
+  
+  Sprawdzimy rozkład reszt w obu tych modelach testami Shapiro - Wilka i Jarque - Bera. Hipotezy:
   
   *H0: rozkład badanej cechy jest rozkładem normalnym*
    
@@ -136,62 +141,161 @@ Metoda Hellwiga wskazuje na wybranie zmiennych X4, A i B, natomiast metoda kroko
   *H1: rozkład badanej cechy nie jest rozkładem normalnym*
 
 ```{r echo=TRUE, message=FALSE, warning=FALSE}
-model_step <- lm(Y ~ X1 + X3 + X4 + X6 + A + B, data.train)
-model_hel <- lm(Y ~ X4 + A + B, data.train)
-shapiro.test(model_step$residuals)
+model_hel <- lm(Y ~ A + B, data.train)
+model_step <- lm(Y ~ X1 + X3 + X4 + X5 + A + B, data.train)
 shapiro.test(model_hel$residuals)
-jarque.bera.test(model_step$residuals)
 jarque.bera.test(model_hel$residuals)
+shapiro.test(model_step$residuals)
+jarque.bera.test(model_step$residuals)
 ```
 
-Żaden z tych modeli nie ma normalnego rozkładu reszt, oto ich wykresy
+Żaden z tych modeli nie ma normalnego rozkładu reszt według testu Shapiro - Wilka, jednak według testu Jarque - Bera resztą są z rozkładu normalnego. oto ich wykresy
 ```{r echo=FALSE, fig.align='center', message=FALSE, warning=FALSE}
 plot(density(model_step$residuals))
 plot((density(model_hel$residuals)))
 ```
+**Mimo rozbieżności w wynikach obu testów założymy, że reszty naszego modelu mają asymptotyczny rozkład normalny, ze względu na dużą próbę.** Możemy teraz zweryfikować wyniki testu t - Studenta, bo spełnione jest jego założenie.
 
-Sprawdzimy założenie o stałości wariancji składnika losowego w modelach
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(model_hel)
+```
+W modelu wskazanym przez metodę Hellwiga wszystkie zmienne są istotne. Model wyjaśnia tylko 0.25 zmiennej zależnej.  
+  
+  Sprawdzimy czy wielkość współczynnika determinacji jest statystycznie istotna. Użyjemy do tego testu Fishera - Snedecora, który służy do badania istotności współczynnika korelacji wielorakiej. Hipotezy:
+  
+  *H0: współczynnik korelacji wielorakiej jest równy 0 - nieistotny*
+
+  
+  *H1: współczynnik korelacji wielorakiej jest większy od 0 - istotny*
+Wartość p-value dla tego testu wskazuje na odrzucenie $H_0$ - współczynnik determinacji $R^2$ jest istotny.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(model_step)
+```
+W modelu sugerowanym przez metodę krokową wstecz $X_5$ okazała się nieistotna - pozbędziemy się jej z modelu.
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+model_step <- lm(sqrt(Y) ~ sqrt(X1) + (X3) + (X4)  + A, data.train)
+summary(model_step)
+
+korelacje <- cor(data.train, method = "pearson")
+vif(model_step) #WSZYSTKO BANGLA ALE MEGA MAŁE r2
+resettest(model_step)
+harvtest(model_step)
+```
+Model wyjaśnia tylko 0.28 zmienności zmiennej zależnej, mimo tego współczynnik determinacji jest istotny.
+  
+  Sprawdzimy założenie o stałości wariancji składnika losowego w obu modelach
   
 ```{r echo=FALSE, message=FALSE, warning=FALSE, fig.align='center'}
 plot(residuals(model_step), type = "l")
 plot(residuals(model_hel), type = "l")
 ```
-Wykres reszt wskazuje na występowanie heteroskdastyczności, ale dla pewności uruchomiony zostanie test Breuscha - Pagana, którego hipotezy to:
+Wykres reszt wskazuje na występowanie heteroskedastyczności, ale dla pewności uruchomiony zostanie test Breuscha - Pagana, którego hipotezy to:
   
   *H0: homoskedastyczność*
   
   *H1: heteroskedastyczność*
   
   
-```{r echo=TRUE, message=FALSE, warning=FALSE}
-bptest(model)
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+bptest(model_hel)
+bptest(model_step)
 ```
 
-Aby ominąć problem heteroskedastyczności użyta zostanie ważona metoda największej wiarygodności. W tym celu stworzymy model pomocniczy, gdzie zmienną objaśnianą są reszty z poprzedniego modelu (wartość bezwzględna), a zmiennymi objaśniającymi będą zmienne z poprzedniego modelu.
+# Ważona MNK
+Aby ominąć problem heteroskedastyczności użyta zostanie ważona metoda najmniejszych kwadratów. Pozwala ona nadać obserwacjom o niskiej wariancji składnika losowego większe wagi, a tym które mają ją zbyt wysoką mniejsze wagi. W ten sposób eliminuje się niekorzystny wpływ zakłócających obserwacji na otrzymane oceny estymatorów. Oceny parametrów są liniowymi, zgodnymi, nieobciążonymi i najefektywniejszymi szacunkami parametrów strukturalnych modelu.
+  
+  W tym celu stworzymy model pomocniczy, gdzie zmienną objaśnianą są reszty z poprzedniego modelu (wartość bezwzględna), a zmiennymi objaśniającymi będą zmienne z poprzedniego modelu
 ```{r echo=TRUE, message=FALSE, warning=FALSE}
-model.helpmegod <- lm(abs(residuals(model)) ~ X1 + X3 + X4 + X6 + A + B, data.train)
+#model pomocniczny - zmienna objaśniana to wartość bezwględna z reszt a zmienne objaśniające to zmienne objaśniające z poprzedniego modelu
+model.helpmegod_hel <- lm(abs(residuals(model_hel)) ~ A + B, data.train)
+model.helpmegod_step <- lm(abs(residuals(model_step)) ~ X1 + X3 + X4 + A + B, data.train)
 ```
 
 Na podstawie powyższego modelu wyliczone zostaną reszty
-```{r}
-wages <- (model.helpmegod$fitted.values)^-2
-#model pomocniczny - zmienna objaśniana to reszty do kwadratu a zm objaśniające to zmienne z poprzedniego modelu
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+#wagi
+wages_hel <- (model.helpmegod_hel$fitted.values)^-2
+wages <- (model.helpmegod_step$fitted.values)^-2
 
-model.wg <- lm(Y ~ X1 + X3 + X4 + X6 + A + B, data.train, weights=wages)
+#ważona mnk
+model.wg_hel <- lm(Y ~ A + B, data.train, weights = wages_hel)
+model.wg <- lm(Y ~ X1 + X3 + X4 + A + B, data.train, weights=wages)
+summary(model.wg_hel)
 summary(model.wg)
 ```
- 
+# Badanie normalności rozkładu reszt, istotnych zmiennych, współczynnika determinacji i jego istotności
+ W obu modelach ponownie zakładamy, że reszty asymptotycznie należą do rozkładu normalnego, ze względu na dużą próbę. W modelu zasugerowanym przez metodę Hellwiga wszystkie zmienne są istotne, współczynnik $R^2$ także jest istotny i wynosi on 0.69. W modelu podanym przez metodę regresji krokowej pozbędziemy się zmiennych $X_1$ i $X_3$, gdyż są one nieistotne.
   
   
-```{r}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+model.wg <- lm(Y ~ X4 + A + B, data.train, weights=wages)
+summary(model.wg)
+```
+Teraz wszystkie zmienne są istotne, współczynnik determinacji wynosi 0.69 i jest istotny.
 
+#Badanie heteroskedastyczności modelu z regresji wstecznej
+  Ważona MNK nie likwiduje heteroskedastyczności, ale minimalizuje jej wpływ na poprawność oszacowań parametrów. Dlatego sprawdzimy co pokazują testy
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+bptest(model.wg)
+bptest(model.wg_hel)
+```
+W obu modelach nadal występuje heteroskedastyczność, jednak nie będzie to już wpływało na estymatory.
+#Badanie współliniowości, postaci funkcyjnej modelu i stabilności parametrów
+Sprawdzimy zjawisko współliniowości. Oceniamy ją *czynnikiem inflacji wariancji - VIF*. Wskaźnik ten pokazuje ile razy wariancja predyktora jest większa od wartości niezakłóconej współliniowością, gdzie 1 jest najmniejszą możliwą wartością, a 10 największą
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+vif(model.wg)
+```
+Wartości A i B cechują się współliniowości, zatem musimy się pozbyć ich obu i ponownie sprawdzimy współliniowość
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+model.wg <- lm(Y ~ X4, data.train, weights=wages)
+vif(model.wg)
+```
+Skoro ze współliniowścią nie ma już problemów, sprawdzimy **poprawność postaci funkcyjnej modelu testem RESET.** Hipotezy:
+  
+  *H0: wybór postaci analitycznej modelu jest prawidłowy,*
+  
+  *H1: wybór postaci analitycznej modelu nie jest prawidłowy,*
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+resettest(model.wg)
+```
+Odrzucamy $H_0$ - podana postać nie jest poprawna. Dokonamy kilku tranformacji i sprawdzimy jeszcze raz poprawność postaci modelu
+  
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+model.wg <- lm(sqrt(Y) ~ sqrt(X4) + B, data.train, weights=wages)
+resettest(model.wg)
+```
+Teraz przyjmujemy $H_0$ - **podana postać modelu jest prawidłowa**.  Sprawdzimy teraz stabilność parametrów
+  
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+harvtest(model.wg)
 ```
   
+  *H0: parametry są stabilne*
+  
+  *H0: parametry nie są stabilne*
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+summary(model.wg)
+```
+  
+$R^2$ modelu wynosi 0.61 - nie jest to oszałamiający wynik, ale wystarczający do przeprowadzenia na nim prognox.
+  
+```{r}
+model.wg_hel
+summary(model.wg_hel)
+resettest(model.wg_hel)
+vif(model_hel)
+harvtest(model.wg_hel)
+```
+
   
   
   
   
   
+  
+#Dlaczego jeden test pokazuje ze są hetero, a 3 testy że są homo?
   
   
   
